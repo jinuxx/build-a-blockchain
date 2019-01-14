@@ -80,30 +80,33 @@ block = {
 我们需要有个方法向区块中添加记录。我们的 `new_transaction()` 方法就是为此而生，而且非常直接。
 
 ```python
-def new_transaction(self, sender, recipient, amount):
-    """
-    创建一个记录到下一个被挖掘的(mined)区块中
-    :param sender: 发送地址
-    :param recipient: 接受地址
-    :param amount: 数量
-    :return: 这个记录保存的位置
-    """
-    self.current_transactions.append({
-        'sender': sender,
-        'recipient': recipient,
-        'amount': amount,
-    })
+class Blockchain(object):
+    ...
 
-    return self.last_block['index'] + 1
+    def new_transaction(self, sender, recipient, amount):
+        """
+        创建一个记录到下一个被挖掘的(mined)区块中
+        :param sender: 发送地址
+        :param recipient: 接受地址
+        :param amount: 数量
+        :return: 这个记录保存的位置
+        """
+        self.current_transactions.append({
+            'sender': sender,
+            'recipient': recipient,
+            'amount': amount,
+        })
+
+        return self.last_block['index'] + 1
 ```
 
 在 `new_transaction()` 方法添加了一条记录到列表中后，返回了这个记录将会被添加的到的区块的 `index` —— 也就是下一个会被挖掘(mined)出的区块。在之后这会用来让用户提交记录。
 
 ### 创建新的区块
 
-当我们的 `Blockchain` 实例化后，我们要添加一个起源(*genesis*)块，这个区块没有任何前置块。我们也需要给这个起源块添加一个“证明(*proof*)”，证明这是挖矿（或者工作过）的结果。我们会在后面讨论这个“挖矿(mine)”。
+当我们的 `Blockchain` 实例化后，我们要添加一个“创世(*genesis*)块”，这个区块没有任何前置块。我们也需要给这个“创世块”添加一个“证明(*proof*)”，证明这是挖矿（或者工作量证明）的结果。我们会在后面讨论这个“挖矿(mine)”。
 
-接下来我们扩展 `new_block()`，`new_transaction()` 和 `hash()` 三个方法，在构造器中添加起源块。
+接下来我们扩展 `new_block()`，`new_transaction()` 和 `hash()` 三个方法，在构造器中添加创世块。
 
 ```python
 import hashlib
@@ -172,3 +175,80 @@ class Blockchain:
         return self.chain[-1]
 ```
 
+上面的代码直截了当——我添加了一些注释来让它更加明了。对于 representing 区块链我们基本已经结束了，但是你一定想要知道新的区块是怎么创建/打造/挖矿挖出的。
+
+### 理解工作量证明(Proof of Work)
+
+工作量证明(*Proof of Work - PoW*)算法——这就是新的区块在区块链中呗创建或者挖出来的算法。PoW算法的最终目标是找出一个结果，一个难以发现却容易证明的数字——从计算方面来说——对于任何一个网络上的人都可以计算出来。这就是工作量证明(*Proof of Work*)算法的核心。
+
+让我们来举一个简单的例子来更好的理解。
+
+让我们来假设某个整数 `x` 乘以另一个整数 `y` 的积的 `hash` 以 `0` 结尾， 也就是 `hash(x * y) = ac23...0` 。对于这个简单的例子，我们把 `x` 的值固定为 `5`，在 `python` 中的实现：
+
+```python
+from hashlib import sha256
+
+x = 5
+y = 0 # 我们不知道这个y到底是多少
+
+while sha256(f'{x*y}'.encode()).hexdigest()[-1] != "0":
+    y += 1
+
+print(f'The solution is y = {y}')
+```
+
+这个问题的结果是 `y = 21`，`hash` 的值以 `0` 结尾
+
+> hash(5 * 21) = 1253e9373e...5e3600155e860
+
+在“比特币”中，这个工作量算法称为 [`HashCash`](https://en.wikipedia.org/wiki/Hashcash)，而且这个算法和上面的简单例子里的算法没有什么太大的区别，矿工们通过这个算法竞速来创造新的区块。总的来说，这个算法的难度是由结果字串的长度决定的，矿工们在找到结果后，会收到一个比特币作为回报——in a transaction(以记录的形式)。
+
+网络很容易验证结果的正确性。
+
+### 工作量证明的应用
+
+接下来为我们的区块链实现一个相似的算法，规则会和上面的例子相像。
+
+> 找到一个数字 `proof` , 当和前一区块的结果 **`last_proof`** 一起，凑成 `{proof}{last_proof}` 计算 `hash` 时，结果 `hash` 以4个`0`开头
+
+```python
+import hashlib
+import json
+
+from time import time
+from uuid import uuid4
+
+
+class Blockchain(object):
+    ...
+        
+    def proof_of_work(self, last_proof):
+        """
+        简单的工作量证明算法 PoW
+        找到一个数字 proof , 当和前一区块的结果 last_proof 计算 hash 时，结果 hash 以4个0开头
+        :param last_proof: <int> 上一个结果proof
+        :return: <int> 结果proof
+        """
+
+        proof = 0
+        while self.valid_proof(last_proof, proof) is False:
+            proof += 1
+
+        return proof
+
+    @staticmethod
+    def valid_proof(last_proof, proof):
+        """
+        验证hash(last_proof, proof)是否以4个0开头
+        :param last_proof: <int> 上一个区块的proof
+        :param proof: <int> 现在的proof
+        :return: <bool> 是否4个0开头
+        """
+        guess = f'{last_proof}{proof}'.encode()
+        guess_hash = hashlib.sha256(guess).hexdigest()
+        return guess_hash[:4] == "0000"
+```
+
+想要调整这个算法难度，可以调整结果要求的开头0的个数，不过4个0最有效率。 你可以看到计算出以1个0开头所需要的时间和4个0所需要的时间简直是天差地别。
+
+我们这个类基本结束了，下面我们开始用HTTP request的方式来互动。

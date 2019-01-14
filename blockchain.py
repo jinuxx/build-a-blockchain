@@ -1,8 +1,4 @@
 # coding: utf-8
-
-"""
-learn blockchain by building one
-"""
 import hashlib
 import json
 from time import time
@@ -51,7 +47,32 @@ class Blockchain:
         })
 
         return self.last_block['index'] + 1
-        pass
+
+    def proof_of_work(self, last_proof):
+        """
+        简单的工作量证明算法 PoW
+        找到一个数字 proof , 当和前一区块的结果 last_proof 计算 hash 时，结果 hash 以4个0开头
+        :param last_proof: <int> 上一个结果proof
+        :return: <int> 结果proof
+        """
+
+        proof = 0
+        while self.valid_proof(last_proof, proof) is False:
+            proof += 1
+
+        return proof
+
+    @staticmethod
+    def valid_proof(last_proof, proof):
+        """
+        验证hash(last_proof, proof)是否以4个0开头
+        :param last_proof: <int> 上一个区块的proof
+        :param proof: <int> 现在的proof
+        :return: <bool> 是否4个0开头
+        """
+        guess = f'{last_proof}{proof}'.encode()
+        guess_hash = hashlib.sha256(guess).hexdigest()
+        return guess_hash[:4] == "0000"
 
     @staticmethod
     def hash(block):
