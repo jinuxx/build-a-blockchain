@@ -80,19 +80,95 @@ block = {
 我们需要有个方法向区块中添加记录。我们的 `new_transaction()` 方法就是为此而生，而且非常直接。
 
 ```python
+def new_transaction(self, sender, recipient, amount):
+    """
+    创建一个记录到下一个被挖掘的(mined)区块中
+    :param sender: 发送地址
+    :param recipient: 接受地址
+    :param amount: 数量
+    :return: 这个记录保存的位置
+    """
+    self.current_transactions.append({
+        'sender': sender,
+        'recipient': recipient,
+        'amount': amount,
+    })
+
+    return self.last_block['index'] + 1
+```
+
+在 `new_transaction()` 方法添加了一条记录到列表中后，返回了这个记录将会被添加的到的区块的 `index` —— 也就是下一个会被挖掘(mined)出的区块。在之后这会用来让用户提交记录。
+
+### 创建新的区块
+
+当我们的 `Blockchain` 实例化后，我们要添加一个起源(*genesis*)块，这个区块没有任何前置块。我们也需要给这个起源块添加一个“证明(*proof*)”，证明这是挖矿（或者工作过）的结果。我们会在后面讨论这个“挖矿(mine)”。
+
+接下来我们扩展 `new_block()`，`new_transaction()` 和 `hash()` 三个方法，在构造器中添加起源块。
+
+```python
+import hashlib
+import json
+from time import time
+
+
+class Blockchain:
+    def __init__(self):
+        self.chain = []
+        self.current_transactions = []
+
+        # 创建起源块
+        self.new_block(proof=100, previous_hash=1)
+
+    def new_block(self, proof, previous_hash=None):
+        """
+        创建一个新的区块
+        :param proof: <int> 工作的算法提供的证明
+        :param previous_hash: (Optional) <str> 前一个区块的hash
+        :return: <dict> 新的区块
+        """
+        block = {
+            'index': len(self.chain) + 1,
+            'timestamp': time(),
+            'transactions': self.current_transactions,
+            'proof': proof,
+            'previous_hash': previous_hash or self.hash(self.chain[-1]),
+        }
+
+        # 重置现在的记录列表
+        self.current_transactions = []
+        self.chain.append(block)
+        return block
+
     def new_transaction(self, sender, recipient, amount):
         """
         创建一个记录并加入链中
-        :param sender: 发送地址
-        :param recipient: 接受地址
-        :param amount: 数量
-        :return: 这个记录保存的位置
+        :param sender: <str> 发送地址
+        :param recipient: <str> 接受地址
+        :param amount: <int> 数量
+        :return: <int> 保存这个记录的区块链的index
         """
         self.current_transactions.append({
-            'sender': sender,
-            'recipient': recipient,
-            'amount': amount,
+            sender: sender,
+            recipient: recipient,
+            amount: amount
         })
 
         return self.last_block['index'] + 1
+        pass
+
+    @staticmethod
+    def hash(block):
+        """
+        创建入参区块的 SHA-256 值
+        :param block: <dict> 区块
+        :return: <str>
+        """
+        # 我们保证区块里的key值是有序的，否则 hashes 会不一致
+        block_string = json.dumps(block, sort_keys=True).encode()
+        return hashlib.sha256(block_string).hexdigest()
+
+    @property
+    def last_block(self):
+        return self.chain[-1]
 ```
+
