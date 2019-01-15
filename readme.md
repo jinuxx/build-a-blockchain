@@ -1,4 +1,4 @@
-# [Learn Blockchains by Building One](https://hackernoon.com/learn-blockchains-by-building-one-117428612f46)
+# **[Learn Blockchains by Building One](https://hackernoon.com/learn-blockchains-by-building-one-117428612f46)**
 The fastest way to learn how Blockchains work is to build one
 
 
@@ -151,9 +151,9 @@ class Blockchain:
         :return: <int> 保存这个记录的区块链的index
         """
         self.current_transactions.append({
-            sender: sender,
-            recipient: recipient,
-            amount: amount
+            'sender': sender,
+            'recipient': recipient,
+            'amount': amount,
         })
 
         return self.last_block['index'] + 1
@@ -251,4 +251,407 @@ class Blockchain(object):
 
 想要调整这个算法难度，可以调整结果要求的开头0的个数，不过4个0最有效率。 你可以看到计算出以1个0开头所需要的时间和4个0所需要的时间简直是天差地别。
 
-我们这个类基本结束了，下面我们开始用HTTP request的方式来互动。
+**我们这个类基本结束了**，下面我们开始用HTTP请求的方式来互动。
+
+## 第二步：发布区块链为API
+
+接下来我们会用 `Python Flask` 框架来发布API，这样我们就能够用HTTP请求来和区块链交互了。
+
+我们会创建以下方法：
+
+* `/transactions/new` 向区块中添加一个新的记录
+* `/mine` 通知服务器去挖掘一个新的区块
+* `/chain` 返回整个区块链
+
+### 配置Flask
+
+我们的“服务器”会构造一个单节点的区块链网络，首先是一些模板代码：
+
+```python
+import hashlib
+import json
+from textwrap import dedent
+from time import time
+from uuid import uuid4
+
+from flask import Flask, jsonify, request
+
+
+class Blockchain(object):
+    ...
+
+
+# 初始化节点
+app = Flask(__name__)
+
+# 为此节点生成一个唯一的地址
+node_identifier = str(uuid4()).replace('-', '')
+
+# 实例化区块链
+blockchain = Blockchain()
+
+
+@app.route('/mine', methods=['GET'])
+def mine():
+    return "我们会挖掘一个新的区块"
+  
+@app.route('/transactions/new', methods=['POST'])
+def new_transaction():
+    return "我们会添加一个新的记录"
+
+@app.route('/chain', methods=['GET'])
+def full_chain():
+    response = {
+        'chain': blockchain.chain,
+        'length': len(blockchain.chain),
+    }
+    return jsonify(response), 200
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+```
+
+上面新增代码的简明阐述：
+
+* 15行：实例化节点。更多`Flask`相关请看[这里](http://flask.pocoo.org/docs/0.12/quickstart/#a-minimal-application)
+* 18行：为节点创建一个随机的名字
+* 21行：实例化`Blockchain`类
+* 24-26行：创建 `/mine` 端点，这是个`GET`方法
+* 28-30行：创建 `/transactions/new` 端点，这是个`POST`方法，我们之后会发送数据给它
+* 32-38行：创建 `/chain` 端点，这是个`GET`方法，返回了整个区块链
+* 40-41行：服务器启动在`5000`端口
+
+### 数据记录的端点 The Transaction Endpoint
+
+下面是一个记录的请求的格式，用户应该按照这个格式发送到服务器：
+
+```json
+{
+ "sender": "my address",
+ "recipient": "someone else's address",
+ "amount": 5
+}
+```
+
+我们已经定义了向区块添加数据记录的方法，所以rest方法很简单，下面我们重写新增记录的方法：
+
+```python
+
+import hashlib
+import json
+from textwrap import dedent
+from time import time
+from uuid import uuid4
+
+from flask import Flask, jsonify, request
+
+...
+
+@app.route('/transactions/new', methods=['POST'])
+def new_transaction():
+    values = request.get_json()
+
+    # Check that the required fields are in the POST'ed data
+    required = ['sender', 'recipient', 'amount']
+    if not all(k in values for k in required):
+        return 'Missing values', 400
+
+    # Create a new Transaction
+    index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
+
+    response = {'message': f'Transaction will be added to Block {index}'}
+    return jsonify(response), 201
+```
+
+### 挖掘的端点
+我们的挖掘端点简单又神奇，它做了3件事：
+
+1. 计算工作量证明
+2. 给矿工回报——以添加一个交易的形式给矿工一个币
+3. 创建新的区块并添加到链中
+
+```python
+import hashlib
+import json
+
+from time import time
+from uuid import uuid4
+
+from flask import Flask, jsonify, request
+
+...
+
+@app.route('/mine', methods=['GET'])
+def mine():
+    # 通过PoW算法计算下一个证明...
+    last_block = blockchain.last_block
+    last_proof = last_block['proof']
+    proof = blockchain.proof_of_work(last_proof)
+
+    # 为找到一个证明获得回报
+    # 发送者是“0”，表示这个节点已经挖到了一个币
+    blockchain.new_transaction(
+        sender="0",
+        recipient=node_identifier,
+        amount=1,
+    )
+
+    # 创建一个新的区块并添加到链中
+    previous_hash = blockchain.hash(last_block)
+    block = blockchain.new_block(proof, previous_hash)
+
+    response = {
+        'message': "新区块已经被创建",
+        'index': block['index'],
+        'transactions': block['transactions'],
+        'proof': block['proof'],
+        'previous_hash': block['previous_hash'],
+    }
+    return jsonify(response), 200
+```
+
+注意，被挖出的区块的接收地址是我们的节点，并且绝大多数的工作只是和我们的区块链类内的方法互动。到这里，我们的工作完成了，接下来该和我们的区块链互动了。
+
+## 第三部：和区块链进行互动
+
+你可以用经典的 `cURL` 或者 `Postman` 来和我们的API进行互动。
+
+让我们启动项目先：
+
+> $ python blockchain.py
+>
+> \* Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+
+首先我们开始挖掘一个区块，通过调用 `GET` 请求：
+
+> http://localhost:5000/mine
+
+返回值：
+
+```json
+{
+    "index": 2,
+    "message": "新区块已经被创建",
+    "previous_hash": "dbbb10f72a569b14856000f72c524bb9c2bc18d120750e4db503486ede7cbfe4",
+    "proof": 35293,
+    "transactions": [
+        {
+            "amount": 1,
+            "recipient": "cf9f9338d9ab4f35a1d38472d1b00762",
+            "sender": "0"
+        }
+    ]
+}
+```
+
+然后创建一个新的数据记录：`post` 调用 `http://localhost:5000/transactions/new` 方法，请求体传入数据记录的结构：
+
+```json
+{
+    "amount": 5,
+    "recipient": "someone-other-address",
+    "sender": "cf9f9338d9ab4f35a1d38472d1b00762"
+}
+```
+
+返回值：
+
+```json
+{
+    "message": "此记录将被添加的区块位置是： 3"
+}
+```
+
+下面我们看下整个链的结构：`GET` 调用 `http://localhost:5000/chain` :
+
+```json
+{
+    "chain": [
+        {
+            "index": 1,
+            "previous_hash": 1,
+            "proof": 100,
+            "timestamp": 1547533711.2220762,
+            "transactions": []
+        },
+        {
+            "index": 2,
+            "previous_hash": "dbbb10f72a569b14856000f72c524bb9c2bc18d120750e4db503486ede7cbfe4",
+            "proof": 35293,
+            "timestamp": 1547533714.8932798,
+            "transactions": [
+                {
+                    "amount": 1,
+                    "recipient": "cf9f9338d9ab4f35a1d38472d1b00762",
+                    "sender": "0"
+                }
+            ]
+        }
+    ],
+    "length": 2
+}
+```
+
+## 第四步：共识机制（Consensus）
+
+这部分很流弊，我们前面已经实现了一个简单的区块链，这个区块链接收数据记录并且还可以挖掘新的区块，不过整个区块链的要点是*去中心化*。如果实现了去中心化，我们该怎么保证他们对应的是同一个链呢？这个问题被称为共识机制问题。如果我们的网络中有多个节点，还要实现一个共识机制算法。
+
+### 注册新的节点
+
+在实现共识机制算法之前，我们还需要让一个节点知道网络上周围的节点。网络上的每个节点都要保存一份其他节点的注册信息，因此我们需要更多的端点(endpoint)。
+
+1. `/nodes/register` 来接收URL格式的节点列表
+2. `/nodes/resolve` 来实现共识机制算法，这个算法解决了所有的冲突——确定了所有的节点都使用正确的链。
+
+接下来我们要修改 `Blockchain` 类的构造器，并且提供一个方法来注册节点：
+
+```python
+
+...
+from urllib.parse import urlparse
+...
+
+
+class Blockchain(object):
+    def __init__(self):
+        ...
+        self.nodes = set()
+        ...
+
+    def register_node(self, address):
+        """
+        向节点列表中添加一个新的节点
+        :param address: <str> 新节点地址. Eg. 'http://192.168.0.5:5000'
+        :return: None
+        """
+
+        parsed_url = urlparse(address)
+        self.nodes.add(parsed_url.netloc)
+```
+
+注意，我们用了一个 `set()` 来保存节点，这是最简单并且能够保证在添加新节点时的[幂等性](https://baike.baidu.com/item/%E5%B9%82%E7%AD%89/8600688?fr=aladdin)的方法，这意味着对于一个特定节点，无论添加多少次，在节点列表中只有一次。
+
+### 实现共识机制算法
+
+正如上面所提到的，当一个节点和其他节点所有的链不同，这就是一个冲突。为了解决这个冲突，我们要定制一个规则：即最长有效链是权威链。换句话说，网络上最长的链就是有效的链。通过这个规则，网络上的节点都达成了共识。
+
+```python
+...
+import requests
+
+
+class Blockchain(object)
+    ...
+    
+    def valid_chain(self, chain):
+        """
+        判断入参链是否有效
+        :param chain: <list> 一个区块链
+        :return: <bool> 是否有效
+        """
+
+        last_block = chain[0]
+        current_index = 1
+
+        while current_index < len(chain):
+            block = chain[current_index]
+            print(f'{last_block}')
+            print(f'{block}')
+            print("\n-----------\n")
+            # 判断区块的hash是否正确
+            if block['previous_hash'] != self.hash(last_block):
+                return False
+
+            # 判断工作量证明是否正确
+            if not self.valid_proof(last_block['proof'], block['proof']):
+                return False
+
+            last_block = block
+            current_index += 1
+
+        return True
+
+    def resolve_conflicts(self):
+        """
+        这个就是我们的共识机制算法
+        将我们的链替换为网络上最长的链来解决冲突
+        :return: <bool> 链是否被替换
+        """
+
+        neighbours = self.nodes
+        new_chain = None
+
+        # 我们之寻找链长度大于自己的
+        max_length = len(self.chain)
+
+        # 从网络上查询所有节点的链
+        for node in neighbours:
+            response = requests.get(f'http://{node}/chain')
+
+            if response.status_code == 200:
+                length = response.json()['length']
+                chain = response.json()['chain']
+
+                # 判断长度是否比我们长，链是否有效
+                if length > max_length and self.valid_chain(chain):
+                    max_length = length
+                    new_chain = chain
+
+        # 如果有比我们长且有效的链，则替换我们的链
+        if new_chain:
+            self.chain = new_chain
+            return True
+
+        return False
+```
+
+第一个方法 `valid_chain()` 通过循环判断每个区块，验证 `hash` 和 `proof` 来验证链是否有效。
+
+第二个方法 `resolve_conflicts()` 循环所有的相邻节点，下载他们的链，并且验证。**如果一个有效的链且长度比我们长的链被发现，我们就替换掉自己的**。
+
+下面我们注册两个端点到我们的API中，一个用来添加相邻节点，另一个来解决冲突。
+
+```python
+@app.route('/nodes/register', methods=['POST'])
+def register_nodes():
+    values = request.get_json()
+
+    nodes = values.get('nodes')
+    if nodes is None:
+        return "错误：请提供有效的节点列表", 400
+
+    for node in nodes:
+        blockchain.register_node(node)
+
+    response = {
+        'message': '已添加新节点',
+        'total_nodes': list(blockchain.nodes),
+    }
+    return jsonify(response), 201
+
+
+@app.route('/nodes/resolve', methods=['GET'])
+def consensus():
+    replaced = blockchain.resolve_conflicts()
+
+    if replaced:
+        response = {
+            'message': '我们的链被替换',
+            'new_chain': blockchain.chain
+        }
+    else:
+        response = {
+            'message': '我们的链最有权威',
+            'chain': blockchain.chain
+        }
+
+    return jsonify(response), 200
+```
+
+现在你可以找一台不同的机器，在你的网络上启动不同的节点，或者在同一机器不同端口启动。我在同一机器上启动了两个端口：`http://localhost:5000` 和 `http://localhost:5001`，并且向两个接口中分别注册了对方。
+
+接着我在节点2上挖了一些新的区块，保证它的链更长一点。之后我调用了节点1上的 `GET /nodes/resolve` 方法，接着节点1的链由于共识机制就被替换掉了。
+
+成功！
+
+
