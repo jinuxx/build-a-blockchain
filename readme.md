@@ -3,14 +3,14 @@ The fastest way to learn how Blockchains work is to build one
 
 
 ## 开始之前
-区块链(blockchain)是一个不可改变(immutable)、连续(sequential)的链，链内记录着称为区块的元素。其中可以包含记录(transactions)、文件或者任何你想添加的数据，真的！不过，这些区块都是通过 `hashes` 链在一起的。
+区块链(blockchain)是一个不可改变(immutable)、连续(sequential)的链，链内记录着称为区块的元素。其中可以包含交易(transactions)、文件或者任何你想添加的数据，真的！不过，这些区块都是通过 `hashes` 链在一起的。
 
 如果你不懂 `hash` 是什么，[这里有示例](https://learncryptography.com/hash-functions/what-are-hash-functions)。
 
 **准备工作：** 基础 `python` 编写和 `http` 请求。
 
 本文使用 `python3.6+` 和 `pip`，你还要安装 `Flask` 和 `Requests`:
-> pip install Flask==0.12.2 requests==2.18.4
+> pip install Flask==0.12.2 requests\==2.18.4
 
 **最终代码：** [github](https://github.com/dvf/blockchain)
 
@@ -20,7 +20,7 @@ The fastest way to learn how Blockchains work is to build one
 
 ### Representing a Blockchain
 
-我们将会创建一个 `Blockchain` 类，这个类的构造方法创建了空的列表(chain)来存储我们的区块链，另一个空的列表(current_transactions)来存储记录(transactions)。
+我们将会创建一个 `Blockchain` 类，这个类的构造方法创建了空的列表(chain)来存储我们的区块链，另一个空的列表(current_transactions)来存储交易(transactions)。
 
 ```python
 class Blockchain:
@@ -33,7 +33,7 @@ class Blockchain:
         pass
 
     def new_transaction(self, sender, recipient, amount):
-        # 创建一个记录并加入链中
+        # 创建一个交易并加入链中
         pass
 
     @staticmethod
@@ -47,11 +47,11 @@ class Blockchain:
         pass
 ```
 
-这个 `Blockchain` 类用来管理区块，存储记录并且有一些协助新增区块到链的方法。现在我们来扩展这些方法，
+这个 `Blockchain` 类用来管理区块，存储交易并且有一些协助新增区块到链的方法。现在我们来扩展这些方法，
 
 ### 一个区块是什么样子？
 
-每个区块都有一个 `index`，一个 `timestamp`， 一个记录(*transactions*)的列表，一个证明(*proof*，之后我们会讨论)和上一个区块的 `hash`。
+每个区块都有一个 `index`，一个 `timestamp`， 一个交易(*transactions*)的列表，一个证明(*proof*，之后我们会讨论)和上一个区块的 `hash`。
 
 下面是一个单独的区块的样子：
 
@@ -75,9 +75,9 @@ block = {
 
 如果你还没明白，花点时间领会一下——这是区块链的核心思想。
 
-### 向区块中添加一条记录
+### 向区块中添加一条交易
 
-我们需要有个方法向区块中添加记录。我们的 `new_transaction()` 方法就是为此而生，而且非常直接。
+我们需要有个方法向区块中添加交易。我们的 `new_transaction()` 方法就是为此而生，而且非常直接。
 
 ```python
 class Blockchain(object):
@@ -85,11 +85,11 @@ class Blockchain(object):
 
     def new_transaction(self, sender, recipient, amount):
         """
-        创建一个记录到下一个被挖掘的(mined)区块中
+        创建一个交易到下一个被挖掘的(mined)区块中
         :param sender: 发送地址
         :param recipient: 接受地址
         :param amount: 数量
-        :return: 这个记录保存的位置
+        :return: 这个交易保存的位置
         """
         self.current_transactions.append({
             'sender': sender,
@@ -100,7 +100,7 @@ class Blockchain(object):
         return self.last_block['index'] + 1
 ```
 
-在 `new_transaction()` 方法添加了一条记录到列表中后，返回了这个记录将会被添加的到的区块的 `index` —— 也就是下一个会被挖掘(mined)出的区块。在之后这会用来让用户提交记录。
+在 `new_transaction()` 方法添加了一条交易到列表中后，返回了这个交易将会被添加的到的区块的 `index` —— 也就是下一个会被挖掘(mined)出的区块。在之后这会用来让用户提交交易。
 
 ### 创建新的区块
 
@@ -137,18 +137,18 @@ class Blockchain:
             'previous_hash': previous_hash or self.hash(self.chain[-1]),
         }
 
-        # 重置现在的记录列表
+        # 重置现在的交易列表
         self.current_transactions = []
         self.chain.append(block)
         return block
 
     def new_transaction(self, sender, recipient, amount):
         """
-        创建一个记录并加入链中
+        创建一个交易并加入链中
         :param sender: <str> 发送地址
         :param recipient: <str> 接受地址
         :param amount: <int> 数量
-        :return: <int> 保存这个记录的区块链的index
+        :return: <int> 保存这个交易的区块链的index
         """
         self.current_transactions.append({
             'sender': sender,
@@ -201,7 +201,7 @@ print(f'The solution is y = {y}')
 
 > hash(5 * 21) = 1253e9373e...5e3600155e860
 
-在“比特币”中，这个工作量算法称为 [`HashCash`](https://en.wikipedia.org/wiki/Hashcash)，而且这个算法和上面的简单例子里的算法没有什么太大的区别，矿工们通过这个算法竞速来创造新的区块。总的来说，这个算法的难度是由结果字串的长度决定的，矿工们在找到结果后，会收到一个比特币作为回报——in a transaction(以记录的形式)。
+在“比特币”中，这个工作量算法称为 [`HashCash`](https://en.wikipedia.org/wiki/Hashcash)，而且这个算法和上面的简单例子里的算法没有什么太大的区别，矿工们通过这个算法竞速来创造新的区块。总的来说，这个算法的难度是由结果字串的长度决定的，矿工们在找到结果后，会收到一个比特币作为回报——in a transaction(以交易的形式)。
 
 网络很容易验证结果的正确性。
 
@@ -259,7 +259,7 @@ class Blockchain(object):
 
 我们会创建以下方法：
 
-* `/transactions/new` 向区块中添加一个新的记录
+* `/transactions/new` 向区块中添加一个新的交易
 * `/mine` 通知服务器去挖掘一个新的区块
 * `/chain` 返回整个区块链
 
@@ -297,7 +297,7 @@ def mine():
   
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
-    return "我们会添加一个新的记录"
+    return "我们会添加一个新的交易"
 
 @app.route('/chain', methods=['GET'])
 def full_chain():
@@ -321,9 +321,9 @@ if __name__ == '__main__':
 * 32-38行：创建 `/chain` 端点，这是个`GET`方法，返回了整个区块链
 * 40-41行：服务器启动在`5000`端口
 
-### 数据记录的端点 The Transaction Endpoint
+### 交易的端点 The Transaction Endpoint
 
-下面是一个记录的请求的格式，用户应该按照这个格式发送到服务器：
+下面是一个交易的请求的格式，用户应该按照这个格式发送到服务器：
 
 ```json
 {
@@ -333,7 +333,7 @@ if __name__ == '__main__':
 }
 ```
 
-我们已经定义了向区块添加数据记录的方法，所以rest方法很简单，下面我们重写新增记录的方法：
+我们已经定义了向区块添加数据交易的方法，所以rest方法很简单，下面我们重写新增交易的方法：
 
 ```python
 
@@ -444,7 +444,7 @@ def mine():
 }
 ```
 
-然后创建一个新的数据记录：`post` 调用 `http://localhost:5000/transactions/new` 方法，请求体传入数据记录的结构：
+然后创建一个新的交易：`post` 调用 `http://localhost:5000/transactions/new` 方法，请求体传入交易的结构：
 
 ```json
 {
@@ -458,7 +458,7 @@ def mine():
 
 ```json
 {
-    "message": "此记录将被添加的区块位置是： 3"
+    "message": "此交易将被添加的区块位置是： 3"
 }
 ```
 
@@ -494,7 +494,7 @@ def mine():
 
 ## 第四步：共识机制（Consensus）
 
-这部分很流弊，我们前面已经实现了一个简单的区块链，这个区块链接收数据记录并且还可以挖掘新的区块，不过整个区块链的要点是*去中心化*。如果实现了去中心化，我们该怎么保证他们对应的是同一个链呢？这个问题被称为共识机制问题。如果我们的网络中有多个节点，还要实现一个共识机制算法。
+这部分很流弊，我们前面已经实现了一个简单的区块链，这个区块链接收交易并且还可以挖掘新的区块，不过整个区块链的要点是*去中心化*。如果实现了去中心化，我们该怎么保证他们对应的是同一个链呢？这个问题被称为共识机制问题。如果我们的网络中有多个节点，还要实现一个共识机制算法。
 
 ### 注册新的节点
 
